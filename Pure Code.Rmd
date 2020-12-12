@@ -1,0 +1,509 @@
+---
+title: "Bayesian Nonparametric and Meta Analyses of COVID-19 Studies"
+author: "Haixin Yu"
+date: "11/11/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Installing required packages}
+## install.packages(c("metafor", "meta", "dplyr", "DPpackage", "tidyverse", "ggplot2"))
+```
+
+```{r Loading packages}
+library(metafor)
+library(meta)
+library(dplyr)
+library(DPpackage)
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r Reading in data}
+raw = read.csv("Asymptomatic COVID-19.csv", header=T, sep=",")
+```
+
+## Data Preprocessing
+
+```{r Cleaning data}
+# rename column names
+colnames(raw) = c("id", "author" ," collection" ,"setting" ,"cases" ,"total", "source")
+
+# separate column setting into two columns
+dat = raw %>% separate(setting, c("code", "setting"), sep=". ", extra="merge")
+
+# convert column to lowercase
+dat = dat %>% mutate(setting = tolower(setting))
+
+# add column proportion
+dat = dat %>% add_column(proportion = round(dat$cases/dat$total, 5), .before="source")
+
+# sort by study setting code
+dat = dat[order(dat$code), ]
+
+# reset row index
+rownames(dat) = seq(length=nrow(dat))
+```
+
+```{r Visualizing data}
+# group studies by setting
+dat %>% group_by(setting) %>% summarize(count=n())
+
+# histogram and density plot
+hist(dat$proportion,
+     col="peachpuff",
+     border="black",
+     prob=TRUE,
+     xlab="Proportion",
+     main="",
+     breaks=20)
+lines(density(dat$proportion), lwd=1, col="chocolate3")
+
+# QQ plot
+qqnorm(dat$proportion)
+qqline(dat$proportion)
+```
+
+## Meta Analysis Using meta and metafor Packages
+
+```{r Calculating overall summary proportion}
+# individual effect sizes yi and sampling variances vi under logit transformation
+ies.logit = escalc(xi=cases, ni=total, data=dat, measure="PLO")
+
+# pool individual effect sizes and sampling variances based on inverse variance method
+# random effects using DerSimonian-Laird estimator
+pes.logit = rma(yi, vi, data=ies.logit, method="DL", level=95)
+
+# convert to original, non-transformed measurement scale
+pes = predict(pes.logit, transf=transf.ilogit)
+
+# true summary proportion and 95% CI
+print(pes, digits=5)
+```
+
+```{r Identifying and quantifying heterogeneity}
+# 1) test for heterogeneity (Q)
+# 2) estimate of between-study variance (tau^2)
+# 3) estimate for the proportion of observed variability reflects between-study variance (I^2)
+
+# view the results
+print(pes.logit, digits=2)
+
+# computes and displays confidence intervals of tau^2 and I^2
+confint(pes.logit, digits=2)
+```
+
+```{r Identifying outlying studies with residuals}
+# screening for externally studentized residuals larger than 2 or 3 in absolute value
+# find studies with z-values larger than 2 or 3 depending on number of studies included
+
+stud.res = rstudent(pes.logit)
+abs.z = abs(stud.res$z)
+stud.res[order(-abs.z)]
+```
+
+```{r Leave-one-out analysis, fig.width=12, fig.height=14, fig.align='center'}
+# determine whether outliers are truly influential
+L1O = leave1out(pes.logit, transf=transf.ilogit); print(L1O, digits=4)
+
+# visualize the change in summary effect size with forest plot using metafor
+l1o = leave1out(pes.logit)
+
+yi = l1o$estimate
+vi = l1o$se^2
+
+forest(yi,
+       vi,
+       transf=transf.ilogit,
+       slab=paste(dat$author),
+       refline=pes$pred,
+       xlab="Summary proportions leaving out each study")
+```
+
+```{r Baujat plot}
+baujat(pes.logit,
+       xlab="Contribution to Q-statistic",
+       ylab="Influence on Summary Proportion")
+```
+
+```{r Diagnostic tests}
+# built-in function in metafor to verify influential studies
+inf = influence(pes.logit)
+print(inf)
+plot(inf)
+```
+
+```{r Creating forest plots, fig.width=12, fig.height=21, fig.align='center'}
+# publication-quality forest plot
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=dat,
+                       sm="PLO",
+                       method.tau="DL",
+                       method.ci="NAsm")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       weight.study="random",
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits=5,
+       plotwidth="12cm")
+```
+
+### Subgroup Analysis
+
+```{r Conducting Subgroup Analysis}
+# 1) calculating subgroup summary proportions
+# 2) conducting subgroup analysis
+# 3) recalculating summary proportion
+
+# Assumption:
+# Do not assume a common between-study variance component across subgroups
+# Do not pool within-group estimates of between-study variance tau-squared
+
+pes.logit.contact_invstgn = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                subset=setting=="contact investigation")
+pes.logit.contact_invstgn_agg = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                    subset=setting=="contact investigation, aggregated")
+pes.logit.outbreak_invstgn = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                 subset=setting=="outbreak investigation")
+pes.logit.screening = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                          subset=setting=="screening")
+pes.logit.hosp_adults = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                            subset=setting=="hospitalised adults")
+pes.logit.hosp_children = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                              subset=setting=="hospitalised children")
+pes.logit.hosp_adt_chd = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                             subset=setting=="hospitalised children and adults")
+
+pes.contact_invstgn = predict(pes.logit.contact_invstgn, transf=transf.ilogit, digits=5)
+pes.contact_invstgn_agg = predict(pes.logit.contact_invstgn_agg, transf=transf.ilogit, digits=5)
+pes.outbreak_invstgn = predict(pes.logit.outbreak_invstgn, transf=transf.ilogit, digits=5)
+pes.screening = predict(pes.logit.screening, transf=transf.ilogit, digits=5)
+pes.hosp_adults = predict(pes.logit.hosp_adults, transf=transf.ilogit, digits=5)
+pes.hosp_children = predict(pes.logit.hosp_children, transf=transf.ilogit, digits=5)
+pes.hosp_adt_chd = predict(pes.logit.hosp_adt_chd, transf=transf.ilogit, digits=5)
+
+dat.diffvar = data.frame(estimate=c(pes.logit.contact_invstgn$b,
+                                    pes.logit.contact_invstgn_agg$b,
+                                    pes.logit.outbreak_invstgn$b,
+                                    pes.logit.screening$b,
+                                    pes.logit.hosp_adults$b,
+                                    pes.logit.hosp_children$b,
+                                    pes.logit.hosp_adt_chd$b),
+                         stderror=c(pes.logit.contact_invstgn$se,
+                                    pes.logit.contact_invstgn_agg$se,
+                                    pes.logit.outbreak_invstgn$se,
+                                    pes.logit.screening$se,
+                                    pes.logit.hosp_adults$se,
+                                    pes.logit.hosp_children$se,
+                                    pes.logit.hosp_adt_chd$se),
+                         moderator=c("contact investigation",
+                                     "contact investigation, aggregated",
+                                     "outbreak investigation",
+                                     "screening",
+                                     "hospitalised adults",
+                                     "hospitalised children",
+                                     "hospitalised children and adults"),
+                         tau2=round(c(pes.logit.contact_invstgn$tau2,
+                                      pes.logit.contact_invstgn_agg$tau2,
+                                      pes.logit.outbreak_invstgn$tau2,
+                                      pes.logit.screening$tau2,
+                                      pes.logit.hosp_adults$tau2,
+                                      pes.logit.hosp_children$tau2,
+                                      pes.logit.hosp_adt_chd$tau2),3))
+
+subganal.setting = rma(estimate, sei=stderror, mods=~moderator, method="FE", data=dat.diffvar)
+
+pes.logit.setting = rma(estimate, sei=stderror, method="FE", data=dat.diffvar)
+pes.setting = predict(pes.logit.setting, transf=transf.ilogit)
+
+# display subgroup summary effect size
+print(pes.contact_invstgn); print(pes.logit.contact_invstgn)
+print(pes.contact_invstgn_agg); print(pes.logit.contact_invstgn_agg)
+print(pes.outbreak_invstgn); print(pes.logit.outbreak_invstgn)
+print(pes.screening); print(pes.logit.screening)
+print(pes.hosp_adults); print(pes.logit.hosp_adults)
+print(pes.hosp_children); print(pes.logit.hosp_children)
+print(pes.hosp_adt_chd); print(pes.logit.hosp_adt_chd)
+
+print(subganal.setting) # display subgroup analysis results
+print(pes.setting)      # display recomputed summary effect size
+```
+
+```{r Creating forest plots in presence of subgroups, fig.width=12, fig.height=24}
+# forest plot with meta not assuming a common variance component
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=dat,
+                       byvar=setting,
+                       sm="PLO",
+                       method.ci="NAsm", 
+                       method.tau="DL",
+                       incr=0.5,
+                       allincr=FALSE,
+                       addincr=FALSE,
+                       title="")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.xlab=12,
+       fs.study=12,
+       fs.study.lables=12,
+       fs.heading=14,
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       col.by="black",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       lty.random=2,
+       type.study="square",
+       type.random="diamond",
+       ff.random="bold",
+       hetlab="Heterogeneity:",
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits.Q=2,
+       digits=5,
+       plotwidth="12cm")
+```
+
+```{r Forest plot of subgroup result, fig.width=12, fig.height=8}
+forest(pes.summary,
+       leftcols=c("studlab", "n", "effect", "ci"),
+       leftlabs=c("Study", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       study.results=FALSE,
+       comb.fixed=FALSE,
+       squaresize=0.6,
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.hetstat=10,
+       col.by="dim grey",
+       xlim=c(0,0.8),
+       plotwidth="12cm")
+```
+
+## Bayesian Nonparametric Analysis Using DPmeta {DPpackage}
+
+```{r Extracting effects and variances}
+ies = escalc(xi=cases, ni=total, data=dat, measure="PR") # no transformation
+
+studies = ies$author
+effects = ies$yi
+variances = ies$vi
+
+names(effects) = studies
+names(variances) = studies
+
+y = cbind(effects, variances)
+```
+
+```{r Applying DPmeta function in DPpackage}
+# Prior information
+prior = list(alpha=0.01, mu=mean(effects), tau1=0.01, tau2=0.01)
+
+# Initial state
+state = NULL
+
+# MCMC parameters
+nburn = 20000    # the number of burn-in scans
+nsave = 10000    # the total number of scans to be saved
+nskip = 20       # the thinning interval
+ndisplay = 500   # the number of saved scans to be displayed on screen
+
+mcmc = list(nburn=nburn, nsave=nsave, nskip=nskip, ndisplay=ndisplay)
+
+# Fit the model: First run
+fit = DPmeta(formula=y~1, prior=prior, mcmc=mcmc, state=state, status=TRUE)
+fit
+```
+
+```{r Tuning the value of the precision parameter alpha1, echo=T, results='hide'}
+prior1 = list(alpha1=5, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit1 = DPmeta(formula=y~1, prior=prior1, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha2, echo=T, results='hide'}
+prior2 = list(alpha2=1, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit2 = DPmeta(formula=y~1, prior=prior2, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha3, echo=T, results='hide'}
+prior3 = list(alpha3=0.1, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit3 = DPmeta(formula=y~1, prior=prior3, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha4, echo=T, results='hide'}
+prior4 = list(alpha4=0.01, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit4 = DPmeta(formula=y~1, prior=prior4, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha5, echo=T, results='hide'}
+prior5 = list(alpha5=0.001, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit5 = DPmeta(formula=y~1, prior=prior5, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha6, echo=T, results='hide'}
+prior6 = list(alpha6=0.0001, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit6 = DPmeta(formula=y~1, prior=prior6, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Visualizing alpha tuning results, fig.align='center'}
+alpha = c(5, 1, 0.1, 0.01, 0.001, 0.0001); alpha = as.factor(alpha)
+clusters = c(fit1$state$ncluster, fit2$state$ncluster, fit3$state$ncluster,
+             fit4$state$ncluster, fit5$state$ncluster, fit6$state$ncluster)
+
+p = cbind.data.frame(alpha, clusters)
+plot = ggplot(p, aes(alpha, clusters, group=1)) + 
+        geom_point() + 
+        geom_line() + 
+        scale_x_discrete(limits=rev(levels(alpha)))
+plot
+```
+
+```{r Displaying model summary}
+# summary with HPD and credibility intervals
+summary(fit)
+summary(fit, hpd = FALSE)
+
+# plot model parameters (to see the plots gradually set ask=TRUE)
+plot(fit, ask=FALSE)
+```
+
+```{r Extracting random effects info from DPpackage model}
+# extract random effects
+DPrandom(fit)
+
+# plot random effects
+plot(DPrandom(fit), ask = FALSE)
+
+# extracts predictive info of random effects
+DPrandom(fit, predictive = TRUE)
+
+# plot predictive information about the specific means
+plot(DPrandom(fit, predictive = TRUE), hpd = TRUE, ask = FALSE)
+```
+
+### Cluster Analysis
+
+```{r Extracting clusters from model summary}
+fit_cluster = fit$state$ss
+
+# add column fit_cluster to dat
+dat_fit = dat %>% add_column(fit_cluster, .before="setting")
+
+# sort by fit_cluster
+new_dat = dat_fit[order(dat_fit$fit_cluster), ]
+
+# save new_dat as a csv file
+write.csv(new_dat, "new_dat.csv", row.names=FALSE)
+```
+
+```{r Creating forest plot in presence of DPmeta clusters, fig.width=12, fig.height=22}
+# forest plot with meta not assuming a common variance component
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=new_dat,
+                       byvar=fit_cluster,
+                       sm="PRAW",
+                       method.ci="NAsm", 
+                       method.tau="DL",
+                       incr=0.5,
+                       allincr=FALSE,
+                       addincr=FALSE,
+                       title="")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.xlab=12,
+       fs.study=12,
+       fs.study.lables=12,
+       fs.heading=14,
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       col.by="black",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       lty.random=2,
+       type.study="square",
+       type.random="diamond",
+       ff.random="bold",
+       hetlab="Heterogeneity:",
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits.Q=2,
+       digits=5,
+       plotwidth="12cm")
+```
+
+```{r Forest plot of cluster result, fig.width=12, fig.height=6}
+forest(pes.summary,
+       leftcols=c("studlab", "n", "effect", "ci"),
+       leftlabs=c("Study", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       study.results=FALSE,
+       comb.fixed=FALSE,
+       comb.random=TRUE,
+       squaresize=0.6,
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.hetstat=10,
+       col.by="dim grey",
+       xlim=c(0,1),
+       plotwidth="12cm")
+```
