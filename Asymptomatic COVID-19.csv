@@ -1,0 +1,80 @@
+Record ID,First author,Setting of data collection,Setting,Number of individuals that were asymptomatic throughout infection,Total number of individuals (denominator),Source
+4,"Bai, Y",Contact tracing,1. Contact investigation,1,6,PubMed
+11,"Chan, JF",Contact tracing,1. Contact investigation,1,5,PubMed
+23,"Hu, Z",Contact tracing,1. Contact investigation,1,4,PubMed
+36,"Liao, J",Contact tracing,1. Contact investigation,1,5,MedRxiv
+42,"Luo, SH",Contact tracing,1. Contact investigation,1,4,PubMed
+54,"Qian, G",Contact tracing,1. Contact investigation,2,8,PubMed
+64,"Tabata, S",Traveler/evacuee from an affected area,5. Hospitalised adults,33,104,MedRxiv
+91,"Tong, ZD",Family cluster,1. Contact investigation,1,2,PubMed
+122,"Luo, L",Contact tracing,"2. Contact investigation, aggregated",8,129,MedRxiv
+141,"Qiu, H",Hospital,6. Hospitalised children,10,36,PubMed
+142,"Zhang, J",Family cluster,1. Contact investigation,2,5,PubMed
+152,"Yang, N",Other,3. Outbreak investigation,2,10,MedRxiv
+170,"Chang, L",Other,4. Screening,2,4,PubMed
+180,"Ye, F",Hospital,1. Contact investigation,1,5,PubMed
+187,"Wang, X",Hospital,5. Hospitalised adults,14,1012,PubMed
+204,"Pongpirul, WA",Hospital,5. Hospitalised adults,1,11,PubMed
+224,"Arima, Y",Traveler/evacuee from an affected area,4. Screening,4,12,PubMed
+233,"Zhou, X",Hospital,5. Hospitalised adults,10,328,EMBASE
+242,"Danis, K",Contact tracing,3. Outbreak investigation,1,13,PubMed
+249,"Wang, Z",Contact tracing,"2. Contact investigation, aggregated",4,47,PubMed
+265,"Tian, S",Other,3. Outbreak investigation,7,24,MedRxiv
+275,"Tan, YP",Hospital,6. Hospitalised children,2,10,EMBASE
+294,"Lavezzo, E",Other,4. Screening,29,73,MedRxiv
+299,"See, KC",Other,6. Hospitalised children,1,4,PubMed
+316,"Zou, L",Other,5. Hospitalised adults,1,18,PubMed
+317,"Hoehl, S",Other,4. Screening,1,2,PubMed
+328,"Yongchen, Z",Hospital,7. Hospitalised children and adults,5,21,PubMed
+334,"Tan, X",Hospital,6. Hospitalised children,2,13,PubMed
+344,"Jiang, XL",Family cluster,1. Contact investigation,1,4,PubMed
+354,"Park, SY",Contact tracing,3. Outbreak investigation,4,97,PubMed
+372,"Jiang, X",Other,1. Contact investigation,1,3,PubMed
+374,"Luo, Y",Family cluster,1. Contact investigation,5,6,PubMed
+376,"Arons, MM",Other,3. Outbreak investigation,3,47,PubMed
+382,"Xu, H",Hospital,6. Hospitalised children,11,32,MedRxiv
+389,"Zhang, B",Hospital,1. Contact investigation,2,7,PubMed
+396,"Schwierzeck, V",Contact tracing,3. Outbreak investigation,2,12,PubMed
+414,"Gao, Y",Contact tracing,1. Contact investigation,6,15,PubMed
+434,"Xu, T",Hospital,5. Hospitalised adults,15,342,PubMed
+443,"Bi, Q",Contact tracing,"2. Contact investigation, aggregated",17,87,PubMed
+449,"Huang, L",Family cluster,1. Contact investigation,2,7,EMBASE
+477,"Cheng, HY",Contact tracing,"2. Contact investigation, aggregated",4,22,PubMed
+481,"Song, W",Hospital,6. Hospitalised children,8,16,EMBASE
+506,"Wong, J",Other,5. Hospitalised adults,16,138,PubMed
+521,"Qiu, C",Contact tracing,5. Hospitalised adults,5,104,PubMed
+556,"Lu, Y",Hospital,6. Hospitalised children,29,110,PubMed
+559,"Kim, SE",Hospital,7. Hospitalised children and adults,10,71,PubMed
+585,"Ma, Y",Hospital,7. Hospitalised children and adults,11,47,PubMed
+593,"Lombardi, A",Hospital,4. Screening,41,138,MedRxiv
+597,"Wu, J",Contact tracing,"2. Contact investigation, aggregated",8,83,PubMed
+598,"Rivett, L",Hospital,4. Screening,5,30,PubMed
+599,"Hijnen, D",Contact tracing,"2. Contact investigation, aggregated",1,11,PubMed
+622,"Treibel, TA",Hospital,4. Screening,12,44,PubMed
+637,"Merza, MA",Hospital,7. Hospitalised children and adults,6,15,EMBASE
+653,"Bai, K",Hospital,6. Hospitalised children,8,25,PubMed
+664,"Chang, MC",Hospital,5. Hospitalised adults,10,139,MedRxiv
+665,"Brandstetter, S",Hospital,"2. Contact investigation, aggregated",2,36,PubMed
+696,"Pham, TQ",Traveler/evacuee from an affected area,3. Outbreak investigation,89,208,MedRxiv
+713,"Böhmer, MM",Contact tracing,3. Outbreak investigation,1,16,PubMed
+726,"Alshami, AA",Other,7. Hospitalised children and adults,69,128,MedRxiv
+729,"London, V",Hospital,5. Hospitalised adults,22,68,PubMed
+735,"Huang, R",Family cluster,1. Contact investigation,1,2,PubMed
+745,"Zhang, W3",Hospital,7. Hospitalised children and adults,26,137,MedRxiv
+761,"Zhou, R",Hospital,5. Hospitalised adults,9,31,PubMed
+763,"Roxby, AC",Other,3. Outbreak investigation,3,6,PubMed
+765,"Angelo Vaira, L",Hospital,5. Hospitalised adults,10,345,PubMed
+769,"Melgosa, M",Hospital,6. Hospitalised children,3,16,PubMed
+778,"Wang, Y2",,7. Hospitalised children and adults,63,279,PubMed
+797,"Noh, JY",Hospital,5. Hospitalised adults,53,199,PubMed
+818,"Kumar, R",Hospital,5. Hospitalised adults,108,231,MedRxiv
+821,"Zhang, W2",Contact tracing,"2. Contact investigation, aggregated",4,12,PubMed
+832,"Andrikopoulou, M",Hospital,5. Hospitalised adults,46,158,PubMed
+843,"Wu, HP",Hospital,6. Hospitalised children,3,23,EMBASE
+849,"Dora, AV",Hospital,3. Outbreak investigation,6,19,PubMed
+856,"Choe, PG",Other,7. Hospitalised children and adults,15,113,PubMed
+899,"Solbach, W",Other,3. Outbreak investigation,10,97,MedRxiv
+908,"Yang, R",Contact tracing,"2. Contact investigation, aggregated",33,78,EMBASE
+936,"Kong, W",Hospital,7. Hospitalised children and adults,45,473,PubMed
+981,"Sharma, AK",Hospital,7. Hospitalised children and adults,215,234,MedRxiv
+1003,"Graham, N",Other,3. Outbreak investigation,46,126,PubMed
