@@ -1,0 +1,618 @@
+---
+title: "Bayesian Nonparametric and Meta Analyses of COVID-19 Studies"
+author: "Haixin Yu"
+date: "12/17/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+## Background
+
+Coronavirus disease 2019 (COVID-19) is a contagious disease caused by severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2). The first case was reported in Wuhan, China, in December 2019. Then the disease rapidly spread across the world. On March 11, 2020, the World Health Organization (WHO) declared the outbreak a pandemic. As of today, a total of 74,724,989 and 17,145,832 confirmed cases have been recorded globally and in the United States. The rapid spread of the virus is largely attributed to the fact that infected patients may be asymptomatic. An asymptomatic patient is defined as a person with laboratory-confirmed COVID-19 infection that has no symptoms at the time of first clinical assessment and at the end of follow-up. Although asymptomatic COVID-19 infections have been reported in various studies, the proportion of asymptomatic infections varied widely between 5% and 95%. Thus, we conducted the Bayesian nonparametric and meta analyses to answer three questions:
+
+1) What is the proportion of asymptomatic infections among people who infected with COVID-19?
+2) What are the factors of asymptomatic infections in COVID-19?
+3) Most importantly, is it reasonable to synthesize all the studies to produce a single estimate?
+
+## Data Source
+
+The file listing all the studies used for my analysis is available from the Harvard Dataverse Database. Four online databases including PubMed, Embase, bioRxiv and medRxiv were searched through 31 July 2020. All included studies reported a specific number of asymptomatic COVID-19 infections. There was no language restriction. Risk of bias may be included in studies.
+
+# Analysis and Results
+
+```{r Installing required packages, include=FALSE}
+# install.packages(c("metafor", "meta", "dplyr", "DPpackage", "tidyverse", "ggplot2"))
+```
+
+```{r Loading packages, message=FALSE, warning=FALSE}
+library(metafor)
+library(meta)
+library(dplyr)
+library(DPpackage)
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r Reading in data}
+raw = read.csv("Asymptomatic COVID-19.csv", header=T, sep=",")
+```
+
+## Data Preprocessing
+
+All analyses were conducted using R version 4.0.2. A total of 6,602 patients from 79 studies were included. The original dataset had 7 variables. I separated the variable `'setting'` into two variables: `'code'` and `'setting'`. I added a new variable `'proportion'` that calculated by dividing the number of asymptomatic infections by the number of total COVID-19 infections. Thus, there are 79 observations of 9 variables in our dataset. The nine variables are:
+
+* id: record id
+* author: first author
+* collection: setting of data collection
+* code: setting code
+* setting (seven study settings):
+  + contact investigation
+  + contact investigation, aggregated
+  + outbreak investigation
+  + screening
+  + hospitalized adults
+  + hospitalized children
+  + hospitalized children and adults
+* cases: the number of asymptomatic infections
+* total: the number of total infections
+* proportion: cases/total
+* source (four databases):
+  + PubMed
+  + Embase
+  + bioRxiv
+  + medRxiv
+
+For the seven categories of the variable `'setting'`: contact investigation included 16 studies, contact investigation, aggregated included 9 studies, outbreak investigation included 12 studies, screening included 7 studies, hospitalized adults included 15 studies, hospitalized children included 10 studies, and hospitalized children and adults included 10 studies.
+
+The histogram and density plot below gave us a general idea of how the data was distributed. The normal Q-Q plot below examined the normality of the data. I performed two types of analysis on the dataset. The first one was meta-analysis using `meta` and `metafor` packages. The second one was Bayesian nonparametric analysis using `DPpackage`.
+\hfill\break
+```{r Cleaning data, message=FALSE}
+# rename column names
+colnames(raw) = c("id", "author", "collection", "setting", "cases", "total", "source")
+
+# separate column setting into two columns: code and setting
+dat = raw %>% separate(setting, c("code", "setting"), sep=". ", extra="merge")
+
+# convert column setting to lowercase
+dat = dat %>% mutate(setting = tolower(setting))
+
+# add new column proportion
+dat = dat %>% add_column(proportion = round(dat$cases/dat$total, 5), .before="source")
+
+# sort data by code
+dat = dat[order(dat$code), ]
+
+# reset row index
+rownames(dat) = seq(length=nrow(dat))
+
+# group studies by setting
+dat %>% group_by(setting) %>% summarize(count=n())
+```
+
+```{r Visualizing data, message=FALSE, fig.align='center'}
+# histogram and density plot
+hist(dat$proportion,
+     col="peachpuff",
+     border="black",
+     prob=TRUE,
+     xlab="Proportion",
+     main="",
+     breaks=20)
+lines(density(dat$proportion), lwd=1, col="chocolate3")
+
+# QQ plot
+qqnorm(dat$proportion)
+qqline(dat$proportion)
+```
+
+## Meta Analysis Using meta and metafor Packages
+
+Based on the QQ plot above, the proportion of asymptomatic infections was transformed using the logit transformation to make it conform to the normal distribution. The `escalc()` function in the `metafor` package was used to calculate individual effect sizes (yi) and its sampling variances (vi). The overall effect size and its 95% confidence interval was based on the random-effects-model using DerSimonian-Laird estimator and normal approximation interval respectively. Unlike the fixed-effects-model, which assumes all studies along with their effect sizes stem from a single homogeneous population, the random-effects-model assumes a distribution of true effect sizes from a “universe” of populations, which takes both within- and between-study variances into account.
+
+In the forest plot below, we displayed the overall estimate of asymptomatic COVID-19 infections through the `metaprop()` and `forest()` function in the `meta` package. Of 6,602 confirmed cases, 1,273 were defined as asymptomatic infections. The overall estimate of the proportion of people who become infected with COVID-19 and remain asymptomatic throughout the course of infection was 20.96%, with a 95% confidence interval of 16.8% to 25.8% and a prediction interval of 3.0% to 70.0%. Apparently, the estimates of asymptomatic infections were quite different from study to study in the forest plot. The high heterogeneity was also confirmed by the tau^2 and I^2 statistic (tau^2 = 1.17, I^2 = 92%, p < 0.01).
+
+There are three methods to quantify heterogeneity: 1) the test for heterogeneity (Q), 2) the estimate of between-study variance (tau^2), 3) the estimate for the proportion of the observed variability that reflects the between-study variance (I^2). Together, they can inform us if the effects are consistent. According to our results, it is not appropriate to combine all the studies to make a summary estimate of the proportion of asymptomatic COVID-19 infections. To identify and visually inspect the influential studies, leave-one-out analysis and diagnostic test were used.
+\hfill\break
+```{r Calculating overall summary proportion}
+# individual effect sizes yi and sampling variances vi under logit transformation
+ies.logit = escalc(xi=cases, ni=total, data=dat, measure="PLO")
+
+# pool individual effect sizes and sampling variances based on inverse variance method
+# random-effects-model using DerSimonian-Laird estimator
+pes.logit = rma(yi, vi, data=ies.logit, method="DL", level=95)
+
+# convert to original, non-transformed measurement scale
+pes = predict(pes.logit, transf=transf.ilogit)
+
+# true summary proportion and 95% CI
+print(pes, digits=5)
+```
+
+```{r Identifying and quantifying heterogeneity}
+# 1) test for heterogeneity (Q)
+# 2) estimate of between-study variance (tau^2)
+# 3) estimate for the proportion of observed variability reflects between-study variance (I^2)
+
+# view the results
+print(pes.logit, digits=2)
+
+# computes and displays confidence intervals of tau^2 and I^2
+# confint(pes.logit, digits=2)
+```
+
+```{r Identifying outlying studies with residuals}
+# screening for externally studentized residuals larger than 2 or 3 in absolute value
+# find studies with z-values larger than 2 or 3 depending on number of studies included
+
+stud.res = rstudent(pes.logit)
+abs.z = abs(stud.res$z)
+stud.res[order(-abs.z)]
+```
+
+```{r Leave-one-out analysis, fig.width=11, fig.height=15, fig.align='center'}
+# determine whether outliers are truly influential
+L1O = leave1out(pes.logit, transf=transf.ilogit); # print(L1O, digits=4)
+
+# visualize the change in summary effect size with forest plot using metafor
+l1o = leave1out(pes.logit)
+
+yi = l1o$estimate
+vi = l1o$se^2
+
+forest(yi,
+       vi,
+       transf=transf.ilogit,
+       slab=paste(dat$author),
+       refline=pes$pred,
+       xlab="Summary proportions leaving out each study")
+```
+
+```{r Baujat plot, fig.align='center'}
+baujat(pes.logit, xlab="Contribution to Q-statistic", ylab="Influence on Summary Proportion")
+```
+
+```{r Diagnostic tests, fig.align='center'}
+# built-in function in metafor to verify influential studies
+inf = influence(pes.logit)
+print(inf)
+plot(inf)
+```
+
+```{r Creating forest plot, fig.width=11, fig.height=19, fig.align='center'}
+# publication-quality forest plot
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=dat,
+                       sm="PLO",
+                       method.tau="DL",
+                       method.ci="NAsm")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       weight.study="random",
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits=5)
+```
+
+### Subgroup Analysis
+
+Subgroup analysis were conducted to explain potential factors contributing to heterogeneity. There are seven defined subgroups based on the method of selection of asymptomatic status. As shown in the forest plot in presence of subgroups, the summary estimate of the proportion of people with asymptomatic COVID-19 infections varied from setting to setting. The first three subgroups involved studies that reported on different types of contact investigation. In 16 studies of single-family contact investigation, the summary estimate was 33% (95% CI 23%-44%). In 9 studies of aggregated contact investigation from both asymptomatic and symptomatic people, the summary estimate was 15% (95% CI 8%-26%). There were 12 studies that reported on outbreak investigation arising from a single symptomatic case in nursing homes or occupational settings. The summary estimate of these studies was 19% (95% CI 11%-30%). People with asymptomatic COVID-19 infections that detected through screening in defined populations were reported in 7 studies. The screened populations included healthcare workers, evacuees from transmission sites, and the entire population of an Italian village. The summary estimate of these studies was 31% (95% CI 26%-38%). The remaining studies were done in hospital settings, included adult only (15 studies), children only (10 studies), and children and adults (10 studies). The summary estimates of these subgroups were 11% (95% CI 6%-20%), 28% (95% CI 23%-33%), and 29% (95% CI 15%-50%) respectively.
+\hfill\break
+```{r Conducting Subgroup Analysis, results='hide'}
+# 1) calculating subgroup summary proportions
+# 2) conducting subgroup analysis
+# 3) recalculating summary proportion
+
+# Assumption:
+# Do not assume a common between-study variance component across subgroups
+# Do not pool within-group estimates of between-study variance tau-squared
+
+pes.logit.contact_invstgn = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                subset=setting=="contact investigation")
+pes.logit.contact_invstgn_agg = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                    subset=setting=="contact investigation, aggregated")
+pes.logit.outbreak_invstgn = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                                 subset=setting=="outbreak investigation")
+pes.logit.screening = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                          subset=setting=="screening")
+pes.logit.hosp_adults = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                            subset=setting=="hospitalised adults")
+pes.logit.hosp_children = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                              subset=setting=="hospitalised children")
+pes.logit.hosp_adt_chd = rma(yi, vi, data=ies.logit, method="DL", level=95,
+                             subset=setting=="hospitalised children and adults")
+
+pes.contact_invstgn = predict(pes.logit.contact_invstgn, transf=transf.ilogit, digits=5)
+pes.contact_invstgn_agg = predict(pes.logit.contact_invstgn_agg, transf=transf.ilogit, digits=5)
+pes.outbreak_invstgn = predict(pes.logit.outbreak_invstgn, transf=transf.ilogit, digits=5)
+pes.screening = predict(pes.logit.screening, transf=transf.ilogit, digits=5)
+pes.hosp_adults = predict(pes.logit.hosp_adults, transf=transf.ilogit, digits=5)
+pes.hosp_children = predict(pes.logit.hosp_children, transf=transf.ilogit, digits=5)
+pes.hosp_adt_chd = predict(pes.logit.hosp_adt_chd, transf=transf.ilogit, digits=5)
+
+dat.diffvar = data.frame(estimate=c(pes.logit.contact_invstgn$b,
+                                    pes.logit.contact_invstgn_agg$b,
+                                    pes.logit.outbreak_invstgn$b,
+                                    pes.logit.screening$b,
+                                    pes.logit.hosp_adults$b,
+                                    pes.logit.hosp_children$b,
+                                    pes.logit.hosp_adt_chd$b),
+                         stderror=c(pes.logit.contact_invstgn$se,
+                                    pes.logit.contact_invstgn_agg$se,
+                                    pes.logit.outbreak_invstgn$se,
+                                    pes.logit.screening$se,
+                                    pes.logit.hosp_adults$se,
+                                    pes.logit.hosp_children$se,
+                                    pes.logit.hosp_adt_chd$se),
+                         moderator=c("contact investigation",
+                                     "contact investigation, aggregated",
+                                     "outbreak investigation",
+                                     "screening",
+                                     "hospitalised adults",
+                                     "hospitalised children",
+                                     "hospitalised children and adults"),
+                         tau2=round(c(pes.logit.contact_invstgn$tau2,
+                                      pes.logit.contact_invstgn_agg$tau2,
+                                      pes.logit.outbreak_invstgn$tau2,
+                                      pes.logit.screening$tau2,
+                                      pes.logit.hosp_adults$tau2,
+                                      pes.logit.hosp_children$tau2,
+                                      pes.logit.hosp_adt_chd$tau2),3))
+
+subganal.setting = rma(estimate, sei=stderror, mods=~moderator, method="FE", data=dat.diffvar)
+
+pes.logit.setting = rma(estimate, sei=stderror, method="FE", data=dat.diffvar)
+pes.setting = predict(pes.logit.setting, transf=transf.ilogit)
+
+# display subgroup summary effect size
+print(pes.contact_invstgn); print(pes.logit.contact_invstgn)
+print(pes.contact_invstgn_agg); print(pes.logit.contact_invstgn_agg)
+print(pes.outbreak_invstgn); print(pes.logit.outbreak_invstgn)
+print(pes.screening); print(pes.logit.screening)
+print(pes.hosp_adults); print(pes.logit.hosp_adults)
+print(pes.hosp_children); print(pes.logit.hosp_children)
+print(pes.hosp_adt_chd); print(pes.logit.hosp_adt_chd)
+
+print(subganal.setting) # display subgroup analysis results
+print(pes.setting)      # display recomputed summary effect size
+```
+
+```{r Creating forest plot in presence of subgroups, fig.width=11, fig.height=24}
+# forest plot with meta not assuming a common variance component
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=dat,
+                       byvar=setting,
+                       sm="PLO",
+                       method.ci="NAsm", 
+                       method.tau="DL",
+                       incr=0.5,
+                       allincr=FALSE,
+                       addincr=FALSE,
+                       title="")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.xlab=12,
+       fs.study=12,
+       fs.study.lables=12,
+       fs.heading=14,
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       col.by="black",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       lty.random=2,
+       type.study="square",
+       type.random="diamond",
+       ff.random="bold",
+       hetlab="Heterogeneity:",
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits.Q=2,
+       digits=5)
+```
+
+Based on the subgroup results showing in the forest plot, it is more reasonable to make summary estimates of the proportion of asymptomatic COVID-19 infections in different settings. Contact investigation and screening were both at a relatively high asymptomatic infection rate of 33% and 31% respectively. The summary estimate of the proportion of asymptomatic infections in children (28%) is much higher than in adults (11%). However, we can still observe some overlap in the confidence intervals of these subgroups, which was confirmed by the significant heterogeneity among studies conducted in aggregated contact investigation (I^2 = 84%, p < 0.01), outbreak investigation (I^2 = 85%, p < 0.01), hospitalized adults (I^2 = 96%, p < 0.01) and hospitalized children and adults (I^2 = 97%, p < 0.01). That is, when we grouped the included studies according to different study settings, there was no significant difference in effect sizes between the seven subgroups. This was also supported by the significant unexplained heterogeneity left in the data (I^2 = 92%, p < 0.01), which implied that there might be one or more important missing factors could better explain the heterogeneity.
+\hfill\break
+```{r Subgroup result forest plot, fig.width=11, fig.height=8, fig.align='center'}
+forest(pes.summary,
+       leftcols=c("studlab", "n", "effect", "ci"),
+       leftlabs=c("Study", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       study.results=FALSE,
+       comb.fixed=FALSE,
+       squaresize=0.6,
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.hetstat=10,
+       col.by="dim grey",
+       xlim=c(0,0.8))
+```
+
+## Bayesian Nonparametric Analysis Using DPmeta {DPpackage}
+
+Bayesian nonparametric analysis was conducted using `DPpackage`. This package contains a series of Bayesian nonparametric models under Dirichlet process. A Bayesian nonparametric model is a Bayesian model on an infinite dimensional parameter space. Its high flexibility and robustness allow for better data modeling than parametric models. A Dirichlet process is a probability distribution whose range is itself a set of probability distributions. It means that instead of generating a single parameter, a single draw from the Dirichlet process outputs another distribution. Therefore, the `DPmeta()` function in the `DPpackage` will generate a posterior density sample for a semiparametric linear mixed effects meta-analysis model using a Dirichlet process or a mixture of Dirichlet process prior for the distribution of the random effects. The highest posterior density (HPD) interval will be used to represent the Bayesian credible intervals. It is the shortest interval among all of the Bayesian credible intervals.
+
+The `DPmeta()` function includes five arguments:
+
+* formula: a two-sided linear formula object.
+* prior: a list giving the prior information.
+  + alpha (the value of the precision parameter)
+  + mu (the value of the mean of the centering distribution)
+  + sigma2 (the value of the variance of the centering distribution)
+* mcmc: a list giving the MCMC parameters.
+  + nburn (the number of burn-in scans)
+  + nskip (the thinning interval)
+  + nsave (the total number of scans to be saved)
+  + ndisplay (the number of saved scans to be displayed on screen)
+* state: a list giving the current value of the parameters.
+* status: a logical variable.
+  + the run is new (TRUE)
+  + the continuation of a previous analysis (FALSE)
+
+`formula` describes how to predict the proportion of asymptomatic COVID-19 infections (y). `prior` gives the prior information (alpha, mu, tau1 and tau2). `mcm`c gives the MCMC parameters (nburn, nsave, nskip, ndisplay). `state` is set to NULL. `status` indicates the run is new. Since we know the distribution of the included studies, we can fairly estimate the value of the mean of the centering distribution (mu) and the hyperparameters for the prior distribution of the variance of the centering distribution (tau1 and tau2). Then by tuning the precision parameter (alpha), the minimum number of clusters was obtained when alpha was 0.01 (See alpha Tuning Plot). The model summary indicated that the overall estimate of the proportion of people who become infected with COVID-19 and remain asymptomatic throughout the course of infection was 22.15%, with a 95% HPD interval of 18.1% to 26.3%. Five clusters were generated. To extract the predictive information of random effects, we used the `DPrandom()` function in the `DPpackage`. It showed that the prediction of the proportion of asymptomatic COVID-19 infection was 22.19%, along with a 95% HPD interval of 1.5% to 46.0%. The trace and density of model parameters are shown in the model summary plots below.
+\hfill\break
+```{r Extracting effect sizes and variances}
+ies = escalc(xi=cases, ni=total, data=dat, measure="PR") # no transformation
+
+studies = ies$author
+effects = ies$yi
+variances = ies$vi
+
+names(effects) = studies
+names(variances) = studies
+
+y = cbind(effects, variances)
+```
+
+```{r Applying DPmeta function in DPpackage}
+set.seed(1234)
+
+# Prior information
+prior = list(alpha=0.01, mu=mean(effects), tau1=0.01, tau2=0.01)
+
+# Initial state
+state = NULL
+
+# MCMC parameters
+nburn = 20000    # the number of burn-in scans
+nskip = 20       # the thinning interval
+nsave = 10000    # the total number of scans to be saved
+ndisplay = 500   # the number of saved scans to be displayed on screen
+
+mcmc = list(nburn=nburn, nsave=nsave, nskip=nskip, ndisplay=ndisplay)
+
+# Fit the model: First run
+fit = DPmeta(formula=y~1, prior=prior, mcmc=mcmc, state=state, status=TRUE)
+fit
+```
+
+```{r Tuning the value of the precision parameter alpha1, results='hide'}
+set.seed(1)
+prior1 = list(alpha1=5, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit1 = DPmeta(formula=y~1, prior=prior1, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha2, results='hide'}
+set.seed(2)
+prior2 = list(alpha2=1, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit2 = DPmeta(formula=y~1, prior=prior2, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha3, results='hide'}
+set.seed(39)
+prior3 = list(alpha3=0.1, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit3 = DPmeta(formula=y~1, prior=prior3, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha4, results='hide'}
+set.seed(4)
+prior4 = list(alpha4=0.01, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit4 = DPmeta(formula=y~1, prior=prior4, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha5, results='hide'}
+set.seed(5)
+prior5 = list(alpha5=0.001, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit5 = DPmeta(formula=y~1, prior=prior5, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Tuning the value of the precision parameter alpha6, results='hide'}
+set.seed(6)
+prior6 = list(alpha6=0.0001, mu=mean(effects), tau1=0.01, tau2=0.01)
+fit6 = DPmeta(formula=y~1, prior=prior6, mcmc=mcmc, state=state, status=TRUE)
+```
+
+```{r Visualizing alpha tuning results, fig.align='center'}
+alpha = c(5, 1, 0.1, 0.01, 0.001, 0.0001); alpha = as.factor(alpha)
+clusters = c(fit1$state$ncluster, fit2$state$ncluster, fit3$state$ncluster,
+             fit4$state$ncluster, fit5$state$ncluster, fit6$state$ncluster)
+
+p = cbind.data.frame(alpha, clusters)
+plot = ggplot(p, aes(alpha, clusters, group=1)) + 
+        geom_point() + 
+        geom_line() + 
+        scale_x_discrete(limits=rev(levels(alpha)))
+plot
+```
+
+```{r Displaying model summary}
+# summary with HPD and credibility intervals
+summary(fit) # summary(fit, hpd=FALSE)
+
+# plot model parameters (to see the plots gradually set ask=TRUE)
+plot(fit, ask=FALSE)
+```
+
+```{r Extracting random effects info from DPpackage model, fig.align='center'}
+# extract random effects of individual study
+DPrandom(fit)
+plot(DPrandom(fit), ask=FALSE)
+
+# extracts predictive info of random effects
+DPrandom(fit, predictive=TRUE)
+
+# plot predictive information about the specific means
+plot(DPrandom(fit, predictive=TRUE), hpd=TRUE, ask=FALSE)
+```
+
+### Cluster Analysis
+
+The `DPmeta` model divided the included studies into five clusters. For further study and comparison, I also conducted a subgroup analysis on the five clusters. As shown in the forest plot in presence of clusters, the summary estimates of the proportion of people with asymptomatic COVID-19 infections varied significantly from cluster to cluster. Cluster 2 and cluster 4 were to the left of the overall summary estimate. Cluster 3 and cluster 5 were to the right of the overall summary estimate. Cluster 1 was on the overall summary estimate. There were 33 studies in cluster 1. The summary estimate of these studies was 25% (95% CI 23%-27%). It included studies from all seven settings. In cluster 2, there were 25 studies. The summary estimate of them was 8% (95% CI 6%-10%). It included studies under six settings other than screening. In 14 studies of cluster 3, the summary estimate of the proportion with asymptomatic infections was 42% (95% CI 38%-46%). It also included studies from all seven settings. Cluster 4 had 5 studies with a summary estimate of 2% (95% CI 1%-3%). Two settings were included: contact investigation and hospitalized adults. The remaining two studies were in cluster 5. They came from contact investigation and hospitalized children and adults. The summary estimate of these two studies was 92% (95% CI 88%-95%).
+\hfill\break
+```{r Extracting clusters from model summary}
+# clusters
+fit_cluster = fit$state$ss
+
+# add column fit_cluster to dat
+dat_fit = dat %>% add_column(fit_cluster, .before="setting")
+
+# sort by fit_cluster
+new_dat = dat_fit[order(dat_fit$fit_cluster), ]
+
+# save new_dat as a csv file
+write.csv(new_dat, "new_dat.csv", row.names=FALSE)
+```
+
+```{r Creating forest plot in presence of DPmeta lusters, fig.width=11, fig.height=22, warning=F}
+# forest plot with meta not assuming a common variance component
+pes.summary = metaprop(cases,
+                       total,
+                       author,
+                       data=new_dat,
+                       byvar=fit_cluster,
+                       sm="PRAW",
+                       method.ci="NAsm", 
+                       method.tau="DL",
+                       incr=0.5,
+                       allincr=FALSE,
+                       addincr=FALSE,
+                       title="")
+forest(pes.summary,
+       xlim=c(0,1),
+       leftcols=c("studlab", "event", "n", "effect", "ci"),
+       leftlabs=c("Study", "Cases", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.xlab=12,
+       fs.study=12,
+       fs.study.lables=12,
+       fs.heading=14,
+       squaresize=0.5,
+       col.square="grey",
+       col.square.lines="black",
+       col.diamond="maroon",
+       col.diamond.lines="maroon",
+       col.by="black",
+       pooled.totals=TRUE,
+       comb.fixed=FALSE,
+       lty.random=2,
+       type.study="square",
+       type.random="diamond",
+       ff.random="bold",
+       hetlab="Heterogeneity:",
+       fs.hetstat=10,
+       smlab="",
+       print.tau2=TRUE,
+       print.Q=TRUE,
+       print.pval.Q=TRUE,
+       print.I2=TRUE,
+       digits.Q=2,
+       digits=5)
+```
+
+As shown in the forest plot of cluster results below, there were significant differences in the proportion of asymptomatic COVID-19 infections among the five clusters generated by the `DPmeta` model. Cluster 5 had an extremely high asymptomatic infection rate of 92% (95% CI 88%-95%). Cluster 4 had the lowest asymptomatic infection rate of 2% (95% CI 1%-3%). It is reasonable to say that the summary estimates of the proportion of asymptomatic COVID-19 infections based on the five clusters are more appropriate than based on the seven study settings. There was only a small amount of heterogeneity in cluster 2 (32%), cluster3 (23%), and cluster 4 (35%). The residual heterogeneity in the data was also only 16%. However, due to the lack of individual level data on COVID-19, we cannot explain the underlying factors behind the clusters at this stage.
+\hfill\break
+```{r, Cluster result forest plot, fig.width=11, fig.height=6, fig.align='center', warning=F}
+forest(pes.summary,
+       leftcols=c("studlab", "n", "effect", "ci"),
+       leftlabs=c("Study", "Total", "Proportion", "95% C.I."),
+       rightcols=c("w.random"),
+       rightlabs=c("Weights"),
+       study.results=FALSE,
+       comb.fixed=FALSE,
+       comb.random=TRUE,
+       squaresize=0.6,
+       xlab="Prevalence",
+       prediction=TRUE,
+       col.predict.lines="red",
+       fs.hetstat=10,
+       col.by="dim grey",
+       xlim=c(0,1))
+```
+
+## Comparison
+
+The overall summary estimate of the proportion of asymptomatic COVID-19 infections by Bayesian nonparametric analysis using the `DPpackage` (22.15%, 95% HPD 18.1%-26.3%) is slightly higher than by meta-analysis using the `meta` and `metafor` packages (20.96%, 95% CI 16.8%-25.8%). However, the prediction interval of Bayesian nonparametric analysis (3.0%-70%) is much narrower than that of meta-analysis (1.5%-46.0%), which enables a more precise proportion estimate of the asymptomatic COVID-19 infections. Also, cluster analysis based on the `DPmeta` model can better explain the heterogeneity among included studies than subgroup analysis based on study settings. However, the factors behind the clusters cannot be summarized since individual level data on COVID-19 is not available.
+
+# Conclusion
+
+We conducted the Bayesian nonparametric and meta analyses to address three questions: 1) What is the proportion of asymptomatic infections among people who infected with COVID-19? 2) What are the factors of asymptomatic infection in COVID-19? 3) And most importantly, is it reasonable to synthesize all the studies to produce a single estimate? The overall summary estimate of the proportion of asymptomatic COVID-19 infections in both methods were around 20%. However, it is not appropriate to synthesize the proportions of all the studies into a single estimate. Subgroup analysis can be conducted to explain the heterogeneity between studies, but not all factors can be summarized in the available data. The variable `setting` can only be part of the contributing factors. Further analysis is needed as more studies and features become available. Therefore, preventive measures such as masks and social distancing will continue to be needed to reduce transmission.
+
+# References
+
+WHO Coronavirus Disease (COVID‐19) Dashboard. <https://covid19.who.int/>
+
+Müller P, Quintana FA, Jara A, Hanson (2015) Bayesian Nonparametric Data Analysis. Springer, New York
+
+Harrer, M., Cuijpers, P., Furukawa, T.A, & Ebert, D. D. (2019). Doing Meta-Analysis in R: A Hands-on Guide. DOI: 10.5281/zenodo.2551803. <https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/>
+
+Riley RD, Higgins JP, Deeks JJ. Interpretation of random effects meta-analyses. BMJ. 2011 Feb 10;342:d549. doi: 10.1136/bmj.d549. PMID: 21310794.
+
+He W, Yi GY, Zhu Y. Estimation of the basic reproduction number, average incubation time, asymptomatic infection rate, and case fatality rate for COVID-19: Meta-analysis and sensitivity analysis. J Med Virol. 2020 May 29:10.1002/jmv.26041. doi: 10.1002/jmv.26041. Epub ahead of print. PMID: 32470164; PMCID: PMC7283745.
+
+Zheng B, Wang H, Yu C. An increasing public health burden arising from children infected with SARS-CoV2: A systematic review and meta-analysis. Pediatr Pulmonol. 2020 Dec;55(12):3487-3496. doi: 10.1002/ppul.25008. Epub 2020 Sep 25. PMID: 32757374; PMCID: PMC7436588.
+
+He J, Guo Y, Mao R, Zhang J. Proportion of asymptomatic coronavirus disease 2019: A systematic review and meta‐analysis. J Med Virol. 2020;1–11. <https://doi.org/10.1002/jmv.26326>
+
+Newcombe RG. Two-sided confidence intervals for the single proportion: comparison of seven methods. Stat Med. 1998 Apr 30;17(8):857-72. doi: 10.1002/(sici)1097-0258(19980430)17:8<857::aid-sim777>3.0.co;2-e. PMID: 9595616.
+
+Heneghan C, Brassey J, Jefferson T. Covid-19: What Proportion Are Asymptomatic? Oxford: Centre for Evidence Based Medicine; 2020 [cited 2020 Jul 27]. Available from: <https://www.cebm.net/covid-19/covid-19-what-proportion-are-asymptomatic/>
+
+Buitrago-Garcia D, Egli-Gany D, Counotte MJ, Hossmann S, Imeri H, Ipekci AM, et al. (2020) Occurrence and transmission potential of asymptomatic and presymptomatic SARS-CoV-2 infections: A living systematic review and metaanalysis. PLoS Med 17(9): e1003346. <https://doi.org/10.1371/journal.pmed.1003346>
+
+Jara, A., Hanson, T. E., Quintana, F. A., Müller, P., & Rosner, G. L. (2011). DPpackage: Bayesian semi- and nonparametric modeling in R. Journal of Statistical Software, 40(5), 1-30. <https://doi.org/10.18637/jss.v040.i05>
